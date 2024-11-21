@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include <ArduinoBLE.h>
-
+#include <EEPROM.h>
 BLEService batreService("180F");
 BLEService sensorService("1815");
 
@@ -8,11 +8,11 @@ BLEUnsignedCharCharacteristic batteryLevelChar("2A19", BLERead | BLENotify);
 BLEStringCharacteristic bpmChar("2A39", BLERead | BLENotify, 20);
 BLEStringCharacteristic oksiChar("2BF3", BLERead | BLENotify, 20);
 BLEStringCharacteristic temperaturChar("2A25", BLERead | BLENotify, 20);
-BLEStringCharacteristic sleepChar("2A01", BLERead | BLEWrite | BLENotify, 20);
+BLEStringCharacteristic notyChar("2A01", BLERead | BLEWrite | BLENotify, 20);
 
 int oldBatteryLevel = 0; // last battery level reading from analog input
 ////////////////////////////////////////////////////////////////////////////////////////////
-
+#include <err-ep.h>
 #include <MAX3010x.h>
 #include <MAX30105.h>
 #include "filters.h"
@@ -89,15 +89,36 @@ unsigned long lastmiliisdeepsleep = 0;
 //////////////////////////////////////////////////////////////////////////////////////////
 int med(int arr[], int size);
 unsigned long lastmillis = 0;
-int arrMedian[20];
-int arrMedianspo[20];
-int arrMediansuhu[20];
+int arrMedian[50];
+int arrMedianspo[50];
+int arrMediansuhu[50];
 int arri;
 
 bool k = 1;
 ///////////////////
+
+
+void errepw(int* arr, int size); 
+void errepr(int* arr, int size); 
+
+int deviceon;
+
+int arrbuferoksi [100];
+int arrbuferbpm [100];
+int arrbufersuhu [100];
+
 void setup()
 {
+  EEPROM.begin(1500);
+  deviceon = errRead(1);
+  deviceon++;
+  errWrite(1, deviceon);
+  errArrRead(arrbuferoksi, deviceon, 100);
+  errArrRead(arrbuferbpm, deviceon, 500);
+  errArrRead(arrbufersuhu, deviceon, 900);
+
+
+  k = 1;
   Serial.begin(115200);
   while (!Serial)
     ;
@@ -119,7 +140,7 @@ void setup()
     sensorService.addCharacteristic(bpmChar);        // add the battery level characteristic
     sensorService.addCharacteristic(oksiChar);       // add the battery level characteristic
     sensorService.addCharacteristic(temperaturChar); // add the battery level characteristic
-    sensorService.addCharacteristic(sleepChar);      // add the battery level characteristic
+    sensorService.addCharacteristic(notyChar);      // add the battery level characteristic
 
     BLE.addService(sensorService); // Add the battery service
 
@@ -194,7 +215,7 @@ void loop()
     if (k == 1)
     {
       Serial.println("no finggers");
-      sleepChar.writeValue("no finggers");
+      notyChar.writeValue("no finggers");
       k = 0;
     }
     lastmillis = millis();
@@ -249,7 +270,7 @@ void loop()
             kEnableAveraging = true;
             if (kEnableAveraging == true)
             {
-              sleepChar.writeValue("scaning");
+              notyChar.writeValue("scaning");
               average_bpm = averager_bpm.process(bpm);
               int average_r = averager_r.process(r);
               average_spo2 = averager_spo2.process(spo2);
@@ -284,9 +305,8 @@ void loop()
                 arrMediansuhu[arri] = x;
                 arri++;
 
-                if (millis() - lastmillis > 10000)
+                if (millis() - lastmillis > 30000)
                 {
-                  arri = 0;
                   lastmillis = millis();
                   String BLEbpm = String(med(arrMedian, arri)) + " BPM";
                   String BLEspo = String(med(arrMedianspo, arri)) + "%";
@@ -294,12 +314,13 @@ void loop()
                   Serial.println("Send BLE = Heart Rate: " + BLEbpm + "| SPO2: " + BLEspo + "| suhu: " + BLEsuhu);
                   if (central)
                   {
-                    sleepChar.writeValue("sending");
+                    notyChar.writeValue("sending");
                     delay(500);
                     bpmChar.writeValue(BLEbpm);
                     oksiChar.writeValue(BLEspo);
                     temperaturChar.writeValue(BLEsuhu);
                   }
+                  arri = 0;
                 }
 
                 constrain(average_spo2, 0, 100);
@@ -320,7 +341,7 @@ void loop()
           }
           else
           {
-            sleepChar.writeValue("detected 3");
+            notyChar.writeValue("detected 3");
           }
 
           // Reset statistic
@@ -329,7 +350,7 @@ void loop()
         }
         else
         {
-          sleepChar.writeValue("detected 2");
+          notyChar.writeValue("detected 2");
         }
         crossed = false;
         last_heartbeat = crossed_time;
@@ -337,7 +358,7 @@ void loop()
     }
     else
     {
-      sleepChar.writeValue("detected 1");
+      notyChar.writeValue("detected 1");
     }
 
     last_diff = current_diff;
@@ -349,12 +370,12 @@ void loop()
   //   esp_deep_sleep_start();
   // }
 
-  if (sleepChar.written())
+  if (notyChar.written())
   {
-    if (sleepChar.value() == "sleep")
+    if (notyChar.value() == "sleep")
     {
       Serial.print("sleep");
-      sleepChar.writeValue("sleep");
+      notyChar.writeValue("sleep");
       delay(100);
       esp_deep_sleep_start();
     }
@@ -386,8 +407,8 @@ void loop()
 int med(int arr[], int size)
 {
   int maxCount = 0;
-  int mode = arr[0];
-  for (int i = 0; i < size; i++)
+  int mode = arr[size];
+  for (int i = 1; i < size; i++)
   {
     if (arr[i] == 0)
       continue;
@@ -406,4 +427,34 @@ int med(int arr[], int size)
     }
   }
   return mode;
+}
+
+void errArrWrite(int* arr, int size, int localdata) {
+    for (int i = 0; i < size; i++) {
+        EEPROM.put(localdata + i * sizeof(int), arr[i]); // Simpan data array ke EEPROM
+    }
+    EEPROM.commit(); // Simpan perubahan ke memori flash
+    Serial.println("write eep");
+}
+
+void errArrRead(int* arr, int size, int localdata) {
+    for (int i = 0; i < size; i++) {
+        EEPROM.get(localdata + i * sizeof(int), arr[i]); // Baca data array dari EEPROM
+    }
+    Serial.println("read eep");
+}
+
+
+void errWrite(int pos, uint8_t val) { //save elapsed time to EEPROM
+    byte* p = (byte*) &val;
+    EEPROM.write(pos, *p);
+    EEPROM.commit();
+}
+
+uint16_t errRead(int pos) { //read data from sensor to EEPROM
+  int val;
+  byte* p = (byte*) &val;
+  *p        = EEPROM.read(pos);
+  *(p + 1)  = EEPROM.read(pos + 1);
+  return val;
 }
