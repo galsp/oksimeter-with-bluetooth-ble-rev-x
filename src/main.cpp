@@ -425,9 +425,9 @@ void loop()
     if (notyChar.value() == "send")
     {
 
-      BLEbpm = String(med(arrMedian, logarri)) + " BPM";
-      BLEspo = String(med(arrMedianspo, logarri)) + "%";
-      BLEsuhu = String(med(arrMediansuhu, logarri)) + "℃";
+      BLEbpm = String(med(arrMedian, arri));
+      BLEspo = String(med(arrMedianspo, arri));
+      BLEsuhu = String(med(arrMediansuhu, arri));
       Serial.println("Send BLE = Heart Rate: " + BLEbpm + "| SPO2: " + BLEspo + "| suhu: " + BLEsuhu + " | deviceon " + deviceon);
       arrbpm[deviceon - 1] = BLEbpm.toInt();
       arrspo[deviceon - 1] = BLEspo.toInt();
@@ -441,9 +441,9 @@ void loop()
       for (int i = 0; i < deviceon; i++)
       {
         delay(500);
-        bpmChar.writeValue(String(arrbpm[i]));
-        oksiChar.writeValue(String(arrspo[i]));
-        temperaturChar.writeValue(String(arrbpm[i]));
+        bpmChar.writeValue(String(arrbpm[i]) + " bpm");
+        oksiChar.writeValue(String(arrspo[i]) + "%");
+        temperaturChar.writeValue(String(arrsuhu[i]) + "℃");
       }
       notyChar.writeValue("okee");
     }
