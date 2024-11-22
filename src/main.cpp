@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <ArduinoBLE.h>
-#include <EEPROM.h>
+#include <errfs.h>
+
 BLEService batreService("180F");
 BLEService sensorService("1815");
 
@@ -12,7 +13,6 @@ BLEStringCharacteristic notyChar("2A01", BLERead | BLEWrite | BLENotify, 20);
 
 int oldBatteryLevel = 0; // last battery level reading from analog input
 ////////////////////////////////////////////////////////////////////////////////////////////
-#include <err-ep.h>
 #include <MAX3010x.h>
 #include <MAX30105.h>
 #include "filters.h"
@@ -83,7 +83,7 @@ long crossed_time = 0;
 #define led 27
 
 #define uS_TO_S_FACTOR 1000000 /* Conversion factor for micro seconds to seconds */
-#define TIME_TO_SLEEP 120       /* Time ESP32 will go to sleep (in seconds) */
+#define TIME_TO_SLEEP 10      /* Time ESP32 will go to sleep (in seconds) */
 
 unsigned long lastmiliisdeepsleep = 0;
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -94,41 +94,44 @@ int arrMedianspo[50];
 int arrMediansuhu[50];
 int arri;
 
+int arrspo[100];
+int arrbpm[100];
+int arrsuhu[100];
 bool k = 1;
+
+String BLEbpm;
+String BLEspo;
+String BLEsuhu;
 ///////////////////
-
-
-void errepw(int* arr, int size); 
-void errepr(int* arr, int size); 
 
 int deviceon;
 
-int arrbuferoksi [100];
-int arrbuferbpm [100];
-int arrbufersuhu [100];
-
 void setup()
 {
-  EEPROM.begin(1500);
-  deviceon = errRead(1);
-  deviceon++;
-  errWrite(1, deviceon);
-  errArrRead(arrbuferoksi, deviceon, 100);
-  errArrRead(arrbuferbpm, deviceon, 500);
-  errArrRead(arrbufersuhu, deviceon, 900);
-
 
   k = 1;
   Serial.begin(115200);
   while (!Serial)
     ;
 
+  if (!LittleFS.begin(FORMAT_LITTLEFS_IF_FAILED))
+  {
+    Serial.println("LittleFS Mount Failed");
+    return;
+  }
+  errReadInt("/boot.txt", deviceon);
+  deviceon++;
+  errfsWriteFsStr("/boot.txt", String(deviceon));
+  errReadArr("/spo.txt", arrspo);
+  errReadArr("/bpm.txt", arrbpm);
+  errReadArr("/suhu.txt", arrsuhu);
+
   if (true) ////bluetooth
   {
     // begin initialization
     BLE.begin();
 
-    BLE.setLocalName("oksibpm 1");
+    BLE.setLocalName("oksibpm fs");
     BLE.setDeviceName("okeibpm");
 
     BLE.setAdvertisedService(batreService);           // add the service UUID
@@ -140,7 +143,7 @@ void setup()
     sensorService.addCharacteristic(bpmChar);        // add the battery level characteristic
     sensorService.addCharacteristic(oksiChar);       // add the battery level characteristic
     sensorService.addCharacteristic(temperaturChar); // add the battery level characteristic
-    sensorService.addCharacteristic(notyChar);      // add the battery level characteristic
+    sensorService.addCharacteristic(notyChar);       // add the battery level characteristic
 
     BLE.addService(sensorService); // Add the battery service
 
@@ -308,18 +311,17 @@ void loop()
                 if (millis() - lastmillis > 30000)
                 {
                   lastmillis = millis();
-                  String BLEbpm = String(med(arrMedian, arri)) + " BPM";
-                  String BLEspo = String(med(arrMedianspo, arri)) + "%";
-                  String BLEsuhu = String(med(arrMediansuhu, arri)) + "℃";
-                  Serial.println("Send BLE = Heart Rate: " + BLEbpm + "| SPO2: " + BLEspo + "| suhu: " + BLEsuhu);
-                  if (central)
-                  {
-                    notyChar.writeValue("sending");
-                    delay(500);
-                    bpmChar.writeValue(BLEbpm);
-                    oksiChar.writeValue(BLEspo);
-                    temperaturChar.writeValue(BLEsuhu);
-                  }
+                  BLEbpm = String(med(arrMedian, arri)) + " BPM";
+                  BLEspo = String(med(arrMedianspo, arri)) + "%";
+                  BLEsuhu = String(med(arrMediansuhu, arri)) + "℃";
+                  Serial.println("Send BLE = Heart Rate: " + BLEbpm + "| SPO2: " + BLEspo + "| suhu: " + BLEsuhu + " | deviceon " + deviceon);
+                  arrbpm[deviceon - 1] = BLEbpm.toInt();
+                  arrspo[deviceon - 1] = BLEspo.toInt();
+                  arrsuhu[deviceon - 1] = BLEsuhu.toInt();
+
+                  errWriteArr("/spo.txt", arrspo, deviceon);
+                  errWriteArr("/bpm.txt", arrbpm, deviceon);
+                  errWriteArr("/suhu.txt", arrsuhu, deviceon);
                   arri = 0;
                 }
 
@@ -370,14 +372,47 @@ void loop()
   //   esp_deep_sleep_start();
   // }
 
-  if (notyChar.written())
+  if (central)
   {
-    if (notyChar.value() == "sleep")
+
+    if (notyChar.written())
     {
-      Serial.print("sleep");
-      notyChar.writeValue("sleep");
-      delay(100);
-      esp_deep_sleep_start();
+      if (notyChar.value() == "sleep")
+      {
+        Serial.print("sleep");
+        notyChar.writeValue("sleep");
+        delay(100);
+        esp_deep_sleep_start();
+      }
+    }
+    if (notyChar.value() == "erase")
+    {
+      notyChar.writeValue("erase");
+      errfsWriteFsStr("/spo.txt", " ");
+      errfsWriteFsStr("/bpm.txt", " ");
+      errfsWriteFsStr("/suhu.txt", " ");
+      errfsWriteFsStr("/boot.txt", " ");
+      notyChar.writeValue("okee");
+      delay(1000);
+      errReadInt("/boot.txt", deviceon);
+      deviceon++;
+      errfsWriteFsStr("/boot.txt", String(deviceon));
+      errReadArr("/spo.txt", arrspo);
+      errReadArr("/bpm.txt", arrbpm);
+      errReadArr("/suhu.txt", arrsuhu);
+    }
+
+    if (notyChar.value() == "send")
+    {
+      notyChar.writeValue("sending " + String(deviceon) + " data");
+      for (int i = 0; i < deviceon; i++)
+      {
+        delay(500);
+        bpmChar.writeValue(String(arrbpm[i]));
+        oksiChar.writeValue(String(arrspo[i]));
+        temperaturChar.writeValue(String(arrbpm[i]));
+      }
+      notyChar.writeValue("okee");
     }
   }
   // if a central is connected to the peripheral:
@@ -427,34 +462,4 @@ int med(int arr[], int size)
     }
   }
   return mode;
-}
-
-void errArrWrite(int* arr, int size, int localdata) {
-    for (int i = 0; i < size; i++) {
-        EEPROM.put(localdata + i * sizeof(int), arr[i]); // Simpan data array ke EEPROM
-    }
-    EEPROM.commit(); // Simpan perubahan ke memori flash
-    Serial.println("write eep");
-}
-
-void errArrRead(int* arr, int size, int localdata) {
-    for (int i = 0; i < size; i++) {
-        EEPROM.get(localdata + i * sizeof(int), arr[i]); // Baca data array dari EEPROM
-    }
-    Serial.println("read eep");
-}
-
-
-void errWrite(int pos, uint8_t val) { //save elapsed time to EEPROM
-    byte* p = (byte*) &val;
-    EEPROM.write(pos, *p);
-    EEPROM.commit();
-}
-
-uint16_t errRead(int pos) { //read data from sensor to EEPROM
-  int val;
-  byte* p = (byte*) &val;
-  *p        = EEPROM.read(pos);
-  *(p + 1)  = EEPROM.read(pos + 1);
-  return val;
 }
