@@ -83,7 +83,7 @@ long crossed_time = 0;
 #define led 27
 
 #define uS_TO_S_FACTOR 1000000 /* Conversion factor for micro seconds to seconds */
-#define TIME_TO_SLEEP 10      /* Time ESP32 will go to sleep (in seconds) */
+#define TIME_TO_SLEEP 10       /* Time ESP32 will go to sleep (in seconds) */
 
 unsigned long lastmiliisdeepsleep = 0;
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -217,6 +217,26 @@ void loop()
     average_spo2 = 0;
     if (k == 1)
     {
+      //////////
+
+      int logarri;
+      if (arri != 0)
+      {
+        logarri = arri;
+      }
+      BLEbpm = String(med(arrMedian, logarri)) + " BPM";
+      BLEspo = String(med(arrMedianspo, logarri)) + "%";
+      BLEsuhu = String(med(arrMediansuhu, logarri)) + "℃";
+      Serial.println("Send BLE = Heart Rate: " + BLEbpm + "| SPO2: " + BLEspo + "| suhu: " + BLEsuhu + " | deviceon " + deviceon);
+      arrbpm[deviceon - 1] = BLEbpm.toInt();
+      arrspo[deviceon - 1] = BLEspo.toInt();
+      arrsuhu[deviceon - 1] = BLEsuhu.toInt();
+
+      errWriteArr("/spo.txt", arrspo, deviceon);
+      errWriteArr("/bpm.txt", arrbpm, deviceon);
+      errWriteArr("/suhu.txt", arrsuhu, deviceon);
+
+      ///////////
       Serial.println("no finggers");
       notyChar.writeValue("no finggers");
       k = 0;
@@ -404,6 +424,19 @@ void loop()
 
     if (notyChar.value() == "send")
     {
+
+      BLEbpm = String(med(arrMedian, logarri)) + " BPM";
+      BLEspo = String(med(arrMedianspo, logarri)) + "%";
+      BLEsuhu = String(med(arrMediansuhu, logarri)) + "℃";
+      Serial.println("Send BLE = Heart Rate: " + BLEbpm + "| SPO2: " + BLEspo + "| suhu: " + BLEsuhu + " | deviceon " + deviceon);
+      arrbpm[deviceon - 1] = BLEbpm.toInt();
+      arrspo[deviceon - 1] = BLEspo.toInt();
+      arrsuhu[deviceon - 1] = BLEsuhu.toInt();
+
+      errWriteArr("/spo.txt", arrspo, deviceon);
+      errWriteArr("/bpm.txt", arrbpm, deviceon);
+      errWriteArr("/suhu.txt", arrsuhu, deviceon);
+
       notyChar.writeValue("sending " + String(deviceon) + " data");
       for (int i = 0; i < deviceon; i++)
       {
