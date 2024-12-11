@@ -83,8 +83,8 @@ long crossed_time = 0;
 #define led 27
 
 #define uS_TO_S_FACTOR 1000000 /* Conversion factor for micro seconds to seconds */
-#define TIME_TO_SLEEP 10       /* Time ESP32 will go to sleep (in seconds) */
-
+#define TIME_TO_SLEEP 180   /* Time ESP32 will go to sleep (in seconds) */
+#define tosleep 2
 unsigned long lastmiliisdeepsleep = 0;
 //////////////////////////////////////////////////////////////////////////////////////////
 int med(int arr[], int size);
@@ -94,9 +94,9 @@ int arrMedianspo[50];
 int arrMediansuhu[50];
 int arri;
 
-int arrspo[100];
-int arrbpm[100];
-int arrsuhu[100];
+int arrspo[500];
+int arrbpm[500];
+int arrsuhu[500];
 bool k = 1;
 
 String BLEbpm;
@@ -131,8 +131,8 @@ void setup()
     // begin initialization
     BLE.begin();
 
-    BLE.setLocalName("oksibpm fs");
-    BLE.setDeviceName("okeibpm");
+    BLE.setLocalName("Stroke Monitoring.");
+    BLE.setDeviceName("OKSIBPM");
 
     BLE.setAdvertisedService(batreService);           // add the service UUID
     batreService.addCharacteristic(batteryLevelChar); // add the battery level characteristic
@@ -174,8 +174,12 @@ void setup()
   sensor.setLedCurrent(MAX30105::LED_RED, 38); // 28
   sensor.setLedCurrent(MAX30105::LED_IR, 38);  // 28 pangkal jari manis
 
-  lastmiliisdeepsleep = 0;
+  lastmiliisdeepsleep = millis();
   esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
+
+  // errWriteArr("/spo.txt", 0, deviceon);
+  // errWriteArr("/bpm.txt", 0, deviceon);
+  // errWriteArr("/suhu.txt", 0, deviceon);
 }
 
 void loop()
@@ -386,11 +390,11 @@ void loop()
     last_diff = current_diff;
   }
 
-  // if (millis() - lastmiliisdeepsleep > (60000 * 5))
-  // {
-  //   Serial.println("sleep");
-  //   esp_deep_sleep_start();
-  // }
+  if (millis() - lastmiliisdeepsleep > (60000 * tosleep))
+  {
+    Serial.println("sleep");
+    esp_deep_sleep_start();
+  }
 
   if (central)
   {
@@ -449,15 +453,15 @@ void loop()
     }
   }
   // if a central is connected to the peripheral:
-
+  //
   //  if (central)
   //   {
   //     Serial.print("Connected to central: ");
   //     Serial.println(central.address());
-
+  //
   //     while (central.connected())
   //     {  String valuee;
-
+  //
   //       if (Serial.available())
   //       {
   //         valuee = Serial.readString();
