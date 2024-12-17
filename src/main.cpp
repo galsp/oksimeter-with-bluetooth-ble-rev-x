@@ -83,15 +83,15 @@ long crossed_time = 0;
 #define led 27
 
 #define uS_TO_S_FACTOR 1000000 /* Conversion factor for micro seconds to seconds */
-#define TIME_TO_SLEEP 180   /* Time ESP32 will go to sleep (in seconds) */
+#define TIME_TO_SLEEP 180      /* Time ESP32 will go to sleep (in seconds) */
 #define tosleep 2
 unsigned long lastmiliisdeepsleep = 0;
 //////////////////////////////////////////////////////////////////////////////////////////
 int med(int arr[], int size);
 unsigned long lastmillis = 0;
-int arrMedian[50];
-int arrMedianspo[50];
-int arrMediansuhu[50];
+int arrMedian[500];
+int arrMedianspo[500];
+int arrMediansuhu[500];
 int arri;
 
 int arrspo[500];
@@ -105,6 +105,21 @@ String BLEsuhu;
 ///////////////////
 
 int deviceon;
+#define nodeId 2
+
+#if nodeId == 1
+#define nodeCode "KA-VF4L" // Rover1
+#define devicename "Stroke 1"
+#elif nodeId == 2
+#define nodeCode "KA-D5CW" // Rover2
+#define devicename "Stroke 2"
+#elif nodeId == 3
+#define nodeCode "KA-06NG" // Rover3
+#define devicename "Stroke 3"
+#else
+#define nodeCode "NO NODECODE FOUND"
+#define devicename "NO device FOUND"
+#endif
 
 void setup()
 {
@@ -131,8 +146,8 @@ void setup()
     // begin initialization
     BLE.begin();
 
-    BLE.setLocalName("Stroke Monitoring.");
-    BLE.setDeviceName("OKSIBPM");
+    BLE.setLocalName(devicename);
+    BLE.setDeviceName(nodeCode);
 
     BLE.setAdvertisedService(batreService);           // add the service UUID
     batreService.addCharacteristic(batteryLevelChar); // add the battery level characteristic
@@ -444,7 +459,7 @@ void loop()
       notyChar.writeValue("sending " + String(deviceon) + " data");
       for (int i = 0; i < deviceon; i++)
       {
-        delay(500);
+        delay(50);
         bpmChar.writeValue(String(arrbpm[i]) + " bpm");
         oksiChar.writeValue(String(arrspo[i]) + "%");
         temperaturChar.writeValue(String(arrsuhu[i]) + "℃");
