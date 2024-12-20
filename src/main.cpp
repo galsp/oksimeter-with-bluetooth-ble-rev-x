@@ -2,6 +2,13 @@
 #include <ArduinoBLE.h>
 #include <errfs.h>
 
+#include <Arduino.h>
+#include <Wire.h>
+#include <DS3231.h>
+
+DS3231 rtcne;
+RTCDateTime dt;
+
 BLEService batreService("180F");
 BLEService sensorService("1815");
 
@@ -9,6 +16,7 @@ BLEUnsignedCharCharacteristic batteryLevelChar("2A19", BLERead | BLENotify);
 BLEStringCharacteristic bpmChar("2A39", BLERead | BLENotify, 20);
 BLEStringCharacteristic oksiChar("2BF3", BLERead | BLENotify, 20);
 BLEStringCharacteristic temperaturChar("2A25", BLERead | BLENotify, 20);
+BLEStringCharacteristic timeuid("1805", BLERead | BLENotify, 20);
 BLEStringCharacteristic notyChar("2A01", BLERead | BLEWrite | BLENotify, 20);
 
 int oldBatteryLevel = 0; // last battery level reading from analog input
@@ -97,15 +105,17 @@ int arri;
 int arrspo[500];
 int arrbpm[500];
 int arrsuhu[500];
+int arrtime[500];
 bool k = 1;
 
 String BLEbpm;
 String BLEspo;
 String BLEsuhu;
+String BLEtime;
 ///////////////////
 
 int deviceon;
-#define nodeId 2
+#define nodeId 3
 
 #if nodeId == 1
 #define nodeCode "KA-VF4L" // Rover1
@@ -124,10 +134,14 @@ int deviceon;
 void setup()
 {
 
+  dt = rtcne.getDateTime();
   k = 1;
   Serial.begin(115200);
-  while (!Serial)
-    ;
+  // while (!Serial)
+  //   ;
+  // rtcne.setDateTime(__DATE__, __TIME__);
+
+  rtcne.begin();
 
   if (!LittleFS.begin(FORMAT_LITTLEFS_IF_FAILED))
   {
@@ -140,6 +154,7 @@ void setup()
   errReadArr("/spo.txt", arrspo);
   errReadArr("/bpm.txt", arrbpm);
   errReadArr("/suhu.txt", arrsuhu);
+  errReadArr("/unixtime.txt", arrtime);
 
   if (true) ////bluetooth
   {
@@ -153,14 +168,13 @@ void setup()
     batreService.addCharacteristic(batteryLevelChar); // add the battery level characteristic
     BLE.addService(batreService);                     // Add the battery service
 
-    BLE.setAdvertisedService(sensorService); // add the service UUID
-
+    BLE.setAdvertisedService(sensorService);         // add the service UUID
     sensorService.addCharacteristic(bpmChar);        // add the battery level characteristic
     sensorService.addCharacteristic(oksiChar);       // add the battery level characteristic
     sensorService.addCharacteristic(temperaturChar); // add the battery level characteristic
+    sensorService.addCharacteristic(timeuid);        // add the battery level characteristic
     sensorService.addCharacteristic(notyChar);       // add the battery level characteristic
-
-    BLE.addService(sensorService); // Add the battery service
+    BLE.addService(sensorService);                   // Add the battery service
 
     batteryLevelChar.writeValue(oldBatteryLevel); // set initial value for this characteristic
     // bpmChar.writeValue(oldBatteryLevel);          // set initial value for this characteristic
@@ -195,10 +209,13 @@ void setup()
   // errWriteArr("/spo.txt", 0, deviceon);
   // errWriteArr("/bpm.txt", 0, deviceon);
   // errWriteArr("/suhu.txt", 0, deviceon);
+  // errWriteArr("/suhu.txt", 0, deviceon);
 }
 
 void loop()
 {
+
+  dt = rtcne.getDateTime();
   // wait for a Bluetooth® Low Energy central
   BLEDevice central = BLE.central();
 
@@ -246,14 +263,17 @@ void loop()
       BLEbpm = String(med(arrMedian, logarri)) + " BPM";
       BLEspo = String(med(arrMedianspo, logarri)) + "%";
       BLEsuhu = String(med(arrMediansuhu, logarri)) + "℃";
-      Serial.println("Send BLE = Heart Rate: " + BLEbpm + "| SPO2: " + BLEspo + "| suhu: " + BLEsuhu + " | deviceon " + deviceon);
+      String timene = rtcne.dateFormat("U", dt);
+      Serial.println("Send BLE = Heart Rate: " + BLEbpm + "| SPO2: " + BLEspo + "| suhu: " + BLEsuhu + " | deviceon " + deviceon + " | timeunix " + timene);
       arrbpm[deviceon - 1] = BLEbpm.toInt();
       arrspo[deviceon - 1] = BLEspo.toInt();
       arrsuhu[deviceon - 1] = BLEsuhu.toInt();
+      arrtime[deviceon - 1] = timene.toInt();
 
       errWriteArr("/spo.txt", arrspo, deviceon);
       errWriteArr("/bpm.txt", arrbpm, deviceon);
       errWriteArr("/suhu.txt", arrsuhu, deviceon);
+      errWriteArr("/unixtime.txt", arrtime, deviceon);
 
       ///////////
       Serial.println("no finggers");
@@ -305,7 +325,6 @@ void loop()
           float rir = (stat_ir.maximum() - stat_ir.minimum()) / stat_ir.average();
           float r = rred / rir;
           float spo2 = kSpO2_A * r * r + kSpO2_B * r + kSpO2_C;
-
           if (bpm > 20 && bpm < 250)
           {
             // Average?
@@ -353,14 +372,17 @@ void loop()
                   BLEbpm = String(med(arrMedian, arri)) + " BPM";
                   BLEspo = String(med(arrMedianspo, arri)) + "%";
                   BLEsuhu = String(med(arrMediansuhu, arri)) + "℃";
-                  Serial.println("Send BLE = Heart Rate: " + BLEbpm + "| SPO2: " + BLEspo + "| suhu: " + BLEsuhu + " | deviceon " + deviceon);
+                  String timene = rtcne.dateFormat("U", dt);
+                  Serial.println("Send BLE = Heart Rate: " + BLEbpm + "| SPO2: " + BLEspo + "| suhu: " + BLEsuhu + " | deviceon " + deviceon + " | timeunix " + timene);
                   arrbpm[deviceon - 1] = BLEbpm.toInt();
                   arrspo[deviceon - 1] = BLEspo.toInt();
                   arrsuhu[deviceon - 1] = BLEsuhu.toInt();
+                  arrtime[deviceon - 1] = timene.toInt();
 
                   errWriteArr("/spo.txt", arrspo, deviceon);
                   errWriteArr("/bpm.txt", arrbpm, deviceon);
                   errWriteArr("/suhu.txt", arrsuhu, deviceon);
+                  errWriteArr("/unixtime.txt", arrtime, deviceon);
                   arri = 0;
                 }
 
@@ -431,6 +453,7 @@ void loop()
       errfsWriteFsStr("/bpm.txt", " ");
       errfsWriteFsStr("/suhu.txt", " ");
       errfsWriteFsStr("/boot.txt", " ");
+      errfsWriteFsStr("/unixtime.txt", " ");
       notyChar.writeValue("okee");
       delay(1000);
       errReadInt("/boot.txt", deviceon);
@@ -439,6 +462,7 @@ void loop()
       errReadArr("/spo.txt", arrspo);
       errReadArr("/bpm.txt", arrbpm);
       errReadArr("/suhu.txt", arrsuhu);
+      errReadArr("/unixtime.txt", arrtime);
     }
 
     if (notyChar.value() == "send")
@@ -447,14 +471,17 @@ void loop()
       BLEbpm = String(med(arrMedian, arri));
       BLEspo = String(med(arrMedianspo, arri));
       BLEsuhu = String(med(arrMediansuhu, arri));
-      Serial.println("Send BLE = Heart Rate: " + BLEbpm + "| SPO2: " + BLEspo + "| suhu: " + BLEsuhu + " | deviceon " + deviceon);
+      String timene = rtcne.dateFormat("U", dt);
+      Serial.println("Send BLE = Heart Rate: " + BLEbpm + "| SPO2: " + BLEspo + "| suhu: " + BLEsuhu + " | deviceon " + deviceon + " | timeunix " + timene);
       arrbpm[deviceon - 1] = BLEbpm.toInt();
       arrspo[deviceon - 1] = BLEspo.toInt();
       arrsuhu[deviceon - 1] = BLEsuhu.toInt();
+      arrtime[deviceon - 1] = timene.toInt();
 
       errWriteArr("/spo.txt", arrspo, deviceon);
       errWriteArr("/bpm.txt", arrbpm, deviceon);
       errWriteArr("/suhu.txt", arrsuhu, deviceon);
+      errWriteArr("/unixtime.txt", arrtime, deviceon);
 
       notyChar.writeValue("sending " + String(deviceon) + " data");
       for (int i = 0; i < deviceon; i++)
@@ -462,7 +489,9 @@ void loop()
         delay(50);
         bpmChar.writeValue(String(arrbpm[i]) + " bpm");
         oksiChar.writeValue(String(arrspo[i]) + "%");
+        timeuid.writeValue(String(arrtime[i]));
         temperaturChar.writeValue(String(arrsuhu[i]) + "℃");
+        Serial.println(String(arrtime[i]));
       }
       notyChar.writeValue("okee");
     }
