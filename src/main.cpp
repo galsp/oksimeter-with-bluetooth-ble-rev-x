@@ -92,7 +92,7 @@ long crossed_time = 0;
 
 #define uS_TO_S_FACTOR 1000000 /* Conversion factor for micro seconds to seconds */
 #define TIME_TO_SLEEP 180      /* Time ESP32 will go to sleep (in seconds) */
-#define tosleep 2
+#define tosleep 1
 unsigned long lastmiliisdeepsleep = 0;
 //////////////////////////////////////////////////////////////////////////////////////////
 int med(int arr[], int size);
@@ -115,7 +115,7 @@ String BLEtime;
 ///////////////////
 
 int deviceon;
-#define nodeId 3
+#define nodeId 1
 
 #if nodeId == 1
 #define nodeCode "KA-VF4L" // Rover1
@@ -133,7 +133,11 @@ int deviceon;
 
 void setup()
 {
-
+  pinMode(0, INPUT_PULLDOWN);
+  gpio_deep_sleep_hold_dis();
+  esp_sleep_config_gpio_isolate();
+  esp_deep_sleep_enable_gpio_wakeup(1<<0, ESP_GPIO_WAKEUP_GPIO_HIGH);
+  gpio_set_direction(GPIO_NUM_0, GPIO_MODE_INPUT);
   dt = rtcne.getDateTime();
   k = 1;
   Serial.begin(115200);
@@ -431,6 +435,10 @@ void loop()
   {
     Serial.println("sleep");
     esp_deep_sleep_start();
+  }
+  if (digitalRead(0) == 1){
+    lastmiliisdeepsleep = millis();
+    Serial.println("wake");
   }
 
   if (central)
