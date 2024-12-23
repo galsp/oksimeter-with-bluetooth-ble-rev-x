@@ -6,6 +6,36 @@
 #include <Wire.h>
 #include <DS3231.h>
 
+////////////
+
+#define BATTERY_ADC_PIN 1       // Pin ADC untuk membaca baterai
+#define ADC_RESOLUTION 4095     // Resolusi ADC ESP32-C3 (12-bit)
+#define MAX_BATTERY_VOLTAGE 4.2 // Tegangan penuh baterai (4.2V)
+#define MIN_BATTERY_VOLTAGE 3.5 // Tegangan minimum baterai (3.0V)
+unsigned long battdelay = 0;
+// Fungsi untuk membaca tegangan baterai
+
+float readBatteryVoltage()
+{
+  int rawADC = analogRead(BATTERY_ADC_PIN);        // Membaca nilai ADC
+  float voltage = (rawADC * 3.4) / ADC_RESOLUTION; // Konversi ke tegangan (V)
+  voltage *= 2.1;
+  return voltage;
+}
+float batrepresentase (){
+  float voltage = readBatteryVoltage();
+  if (voltage >= MAX_BATTERY_VOLTAGE)
+    return 100; // Penuh
+  if (voltage <= MIN_BATTERY_VOLTAGE)
+    return 0; // Kosong
+  // Rumus interpolasi linier
+  return (int)((voltage - MIN_BATTERY_VOLTAGE) /
+               (MAX_BATTERY_VOLTAGE - MIN_BATTERY_VOLTAGE) * 100);
+}
+
+
+//////////////////
+
 DS3231 rtcne;
 RTCDateTime dt;
 
@@ -136,7 +166,7 @@ void setup()
   pinMode(0, INPUT_PULLDOWN);
   gpio_deep_sleep_hold_dis();
   esp_sleep_config_gpio_isolate();
-  esp_deep_sleep_enable_gpio_wakeup(1<<0, ESP_GPIO_WAKEUP_GPIO_HIGH);
+  esp_deep_sleep_enable_gpio_wakeup(1 << 0, ESP_GPIO_WAKEUP_GPIO_HIGH);
   gpio_set_direction(GPIO_NUM_0, GPIO_MODE_INPUT);
   dt = rtcne.getDateTime();
   k = 1;
@@ -147,6 +177,9 @@ void setup()
 
   rtcne.begin();
 
+  analogReadResolution(12); // Resolusi ADC (12-bit)
+  analogSetAttenuation(ADC_11db); // Rentang pengukuran hingga 3.3V
+  
   if (!LittleFS.begin(FORMAT_LITTLEFS_IF_FAILED))
   {
     Serial.println("LittleFS Mount Failed");
@@ -180,7 +213,7 @@ void setup()
     sensorService.addCharacteristic(notyChar);       // add the battery level characteristic
     BLE.addService(sensorService);                   // Add the battery service
 
-    batteryLevelChar.writeValue(oldBatteryLevel); // set initial value for this characteristic
+    batteryLevelChar.writeValue(readBatteryVoltage()); // set initial value for this characteristic
     // bpmChar.writeValue(oldBatteryLevel);          // set initial value for this characteristic
     // oksiChar.writeValue(oldBatteryLevel);         // set initial value for this characteristic
     // temperaturChar.writeValue(oldBatteryLevel);   // set initial value for this characteristic
@@ -436,7 +469,8 @@ void loop()
     Serial.println("sleep");
     esp_deep_sleep_start();
   }
-  if (digitalRead(0) == 1){
+  if (digitalRead(0) == 1)
+  {
     lastmiliisdeepsleep = millis();
     Serial.println("wake");
   }
@@ -524,6 +558,14 @@ void loop()
   //     Serial.print("Disconnected from central: ");
   //     Serial.println(central.address());
   //   }
+  if (millis() - battdelay > 2000)
+  {
+    battdelay = millis();
+    batteryLevelChar.writeValue(batrepresentase()); // set initial value for this characteristic
+    Serial.println("bat :" + String(batrepresentase()));
+    Serial.println("v :" + String(readBatteryVoltage()));
+    Serial.println("adc :" + String(analogRead(1)));
+  }
 }
 
 ///////////////////
