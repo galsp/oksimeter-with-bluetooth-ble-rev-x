@@ -43,6 +43,7 @@ BLEService batreService("180F");
 BLEService sensorService("1815");
 
 BLEUnsignedCharCharacteristic batteryLevelChar("2A19", BLERead | BLENotify);
+BLEStringCharacteristic batteryInfoChar("2BEC", BLERead | BLENotify, 20);
 BLEStringCharacteristic bpmChar("2A39", BLERead | BLENotify, 20);
 BLEStringCharacteristic oksiChar("2BF3", BLERead | BLENotify, 20);
 BLEStringCharacteristic temperaturChar("2A25", BLERead | BLENotify, 20);
@@ -169,6 +170,11 @@ void setup()
   esp_deep_sleep_enable_gpio_wakeup(1 << 0, ESP_GPIO_WAKEUP_GPIO_HIGH);
   gpio_set_direction(GPIO_NUM_0, GPIO_MODE_INPUT);
   dt = rtcne.getDateTime();
+  esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
+
+if (readBatteryVoltage() < 3.5){
+esp_deep_sleep_start();
+}
   k = 1;
   Serial.begin(115200);
   // while (!Serial)
@@ -203,6 +209,7 @@ void setup()
 
     BLE.setAdvertisedService(batreService);           // add the service UUID
     batreService.addCharacteristic(batteryLevelChar); // add the battery level characteristic
+    batreService.addCharacteristic(batteryInfoChar); // add the battery level characteristic
     BLE.addService(batreService);                     // Add the battery service
 
     BLE.setAdvertisedService(sensorService);         // add the service UUID
@@ -213,7 +220,8 @@ void setup()
     sensorService.addCharacteristic(notyChar);       // add the battery level characteristic
     BLE.addService(sensorService);                   // Add the battery service
 
-    batteryLevelChar.writeValue(readBatteryVoltage()); // set initial value for this characteristic
+    batteryLevelChar.writeValue(batrepresentase()); // set initial value for this characteristic
+    batteryInfoChar.writeValue(String(readBatteryVoltage())); // set initial value for this characteristic
     // bpmChar.writeValue(oldBatteryLevel);          // set initial value for this characteristic
     // oksiChar.writeValue(oldBatteryLevel);         // set initial value for this characteristic
     // temperaturChar.writeValue(oldBatteryLevel);   // set initial value for this characteristic
@@ -241,7 +249,6 @@ void setup()
   sensor.setLedCurrent(MAX30105::LED_IR, 38);  // 28 pangkal jari manis
 
   lastmiliisdeepsleep = millis();
-  esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
 
   // errWriteArr("/spo.txt", 0, deviceon);
   // errWriteArr("/bpm.txt", 0, deviceon);
@@ -466,7 +473,7 @@ void loop()
 
   if (millis() - lastmiliisdeepsleep > (60000 * tosleep))
   {
-    if (sensor.setLedCurrent(MAX30105::LED_RED, 0))
+    if (sensor.setLedCurrent(MAX30105::LED_RED, 0 && sensor.setLedCurrent(MAX30105::LED_IR, 0)))
     {
       Serial.println("Sensor off");
     }
@@ -488,7 +495,7 @@ void loop()
       {
         Serial.print("sleep");
         notyChar.writeValue("sleep");
-        if (sensor.setLedCurrent(MAX30105::LED_RED, 0))
+        if (sensor.setLedCurrent(MAX30105::LED_RED, 0 && sensor.setLedCurrent(MAX30105::LED_IR, 0)))
         {
           Serial.println("Sensor off");
         }
@@ -570,6 +577,7 @@ void loop()
   {
     battdelay = millis();
     batteryLevelChar.writeValue(batrepresentase()); // set initial value for this characteristic
+    batteryInfoChar.writeValue(String(readBatteryVoltage())); // set initial value for this characteristic
     Serial.println("bat :" + String(batrepresentase()));
     Serial.println("v :" + String(readBatteryVoltage()));
     Serial.println("adc :" + String(analogRead(1)));
