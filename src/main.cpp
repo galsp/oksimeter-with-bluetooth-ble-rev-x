@@ -22,7 +22,8 @@ float readBatteryVoltage()
   voltage *= 2.1;
   return voltage;
 }
-float batrepresentase (){
+float batrepresentase()
+{
   float voltage = readBatteryVoltage();
   if (voltage >= MAX_BATTERY_VOLTAGE)
     return 100; // Penuh
@@ -32,7 +33,6 @@ float batrepresentase (){
   return (int)((voltage - MIN_BATTERY_VOLTAGE) /
                (MAX_BATTERY_VOLTAGE - MIN_BATTERY_VOLTAGE) * 100);
 }
-
 
 //////////////////
 
@@ -177,9 +177,9 @@ void setup()
 
   rtcne.begin();
 
-  analogReadResolution(12); // Resolusi ADC (12-bit)
+  analogReadResolution(12);       // Resolusi ADC (12-bit)
   analogSetAttenuation(ADC_11db); // Rentang pengukuran hingga 3.3V
-  
+
   if (!LittleFS.begin(FORMAT_LITTLEFS_IF_FAILED))
   {
     Serial.println("LittleFS Mount Failed");
@@ -466,6 +466,10 @@ void loop()
 
   if (millis() - lastmiliisdeepsleep > (60000 * tosleep))
   {
+    if (sensor.setLedCurrent(MAX30105::LED_RED, 0))
+    {
+      Serial.println("Sensor off");
+    }
     Serial.println("sleep");
     esp_deep_sleep_start();
   }
@@ -484,6 +488,10 @@ void loop()
       {
         Serial.print("sleep");
         notyChar.writeValue("sleep");
+        if (sensor.setLedCurrent(MAX30105::LED_RED, 0))
+        {
+          Serial.println("Sensor off");
+        }
         delay(100);
         esp_deep_sleep_start();
       }
@@ -558,7 +566,7 @@ void loop()
   //     Serial.print("Disconnected from central: ");
   //     Serial.println(central.address());
   //   }
-  if (millis() - battdelay > 2000)
+  if (millis() - battdelay > 10000)
   {
     battdelay = millis();
     batteryLevelChar.writeValue(batrepresentase()); // set initial value for this characteristic
