@@ -6,8 +6,10 @@
 #include <Wire.h>
 #include <DS3231.h>
 
-////////////
+// errfs errfsne;
 
+////////////
+bool debug = 0;
 #define BATTERY_ADC_PIN 1       // Pin ADC untuk membaca baterai
 #define ADC_RESOLUTION 4095     // Resolusi ADC ESP32-C3 (12-bit)
 #define MAX_BATTERY_VOLTAGE 4.2 // Tegangan penuh baterai (4.2V)
@@ -123,7 +125,7 @@ long crossed_time = 0;
 
 #define uS_TO_S_FACTOR 1000000 /* Conversion factor for micro seconds to seconds */
 #define TIME_TO_SLEEP 180      /* Time ESP32 will go to sleep (in seconds) */
-#define tosleep 1
+#define tosleep 2
 unsigned long lastmiliisdeepsleep = 0;
 //////////////////////////////////////////////////////////////////////////////////////////
 int med(int arr[], int size);
@@ -172,9 +174,10 @@ void setup()
   dt = rtcne.getDateTime();
   esp_sleep_enable_timer_wakeup(TIME_TO_SLEEP * uS_TO_S_FACTOR);
 
-if (readBatteryVoltage() < 3.5){
-esp_deep_sleep_start();
-}
+  if (readBatteryVoltage() < 3.5)
+  {
+    esp_deep_sleep_start();
+  }
   k = 1;
   Serial.begin(115200);
   // while (!Serial)
@@ -209,7 +212,7 @@ esp_deep_sleep_start();
 
     BLE.setAdvertisedService(batreService);           // add the service UUID
     batreService.addCharacteristic(batteryLevelChar); // add the battery level characteristic
-    batreService.addCharacteristic(batteryInfoChar); // add the battery level characteristic
+    batreService.addCharacteristic(batteryInfoChar);  // add the battery level characteristic
     BLE.addService(batreService);                     // Add the battery service
 
     BLE.setAdvertisedService(sensorService);         // add the service UUID
@@ -220,7 +223,7 @@ esp_deep_sleep_start();
     sensorService.addCharacteristic(notyChar);       // add the battery level characteristic
     BLE.addService(sensorService);                   // Add the battery service
 
-    batteryLevelChar.writeValue(batrepresentase()); // set initial value for this characteristic
+    batteryLevelChar.writeValue(batrepresentase());           // set initial value for this characteristic
     batteryInfoChar.writeValue(String(readBatteryVoltage())); // set initial value for this characteristic
     // bpmChar.writeValue(oldBatteryLevel);          // set initial value for this characteristic
     // oksiChar.writeValue(oldBatteryLevel);         // set initial value for this characteristic
@@ -308,7 +311,13 @@ void loop()
       BLEspo = String(med(arrMedianspo, logarri)) + "%";
       BLEsuhu = String(med(arrMediansuhu, logarri)) + "℃";
       String timene = rtcne.dateFormat("U", dt);
-      Serial.println("Send BLE = Heart Rate: " + BLEbpm + "| SPO2: " + BLEspo + "| suhu: " + BLEsuhu + " | deviceon " + deviceon + " | timeunix " + timene);
+      if (debug)
+      {
+        Serial.println("no finggers");
+        notyChar.writeValue("no finggers");
+        Serial.println("Send BLE = Heart Rate: " + BLEbpm + "| SPO2: " + BLEspo + "| suhu: " + BLEsuhu + " | deviceon " + deviceon + " | timeunix " + timene);
+      }
+
       arrbpm[deviceon - 1] = BLEbpm.toInt();
       arrspo[deviceon - 1] = BLEspo.toInt();
       arrsuhu[deviceon - 1] = BLEsuhu.toInt();
@@ -320,8 +329,6 @@ void loop()
       errWriteArr("/unixtime.txt", arrtime, deviceon);
 
       ///////////
-      Serial.println("no finggers");
-      notyChar.writeValue("no finggers");
       k = 0;
     }
     lastmillis = millis();
@@ -384,7 +391,10 @@ void loop()
               int average_spo2now = average_spo2;
 
               long avr = averager_bpm.count();
-              Serial.println(avr);
+              if (debug)
+              {
+                Serial.println(avr);
+              }
 
               // Show if enough samples have been collected
               if (averager_bpm.count() >= kSampleThreshold)
@@ -394,22 +404,30 @@ void loop()
                   average_bpm = 0;
                 if (average_spo2 < 0)
                   average_spo2 = 0;
-
-                Serial.println(millis());
-                Serial.print("Heart Rate (avg, bpm): ");
-                Serial.println(average_bpm);
-                Serial.print("R-Value (avg): ");
-                Serial.println(average_r);
-                Serial.print("SpO2 (avg, %): ");
-                Serial.println(average_spo2);
-                Serial.print("Suhu (℃)");
-                Serial.println(x);
-                Serial.print("Time (ms): ");
+                if (debug)
+                {
+                  Serial.println(millis());
+                  Serial.print("Heart Rate (avg, bpm): ");
+                  Serial.println(average_bpm);
+                  Serial.print("R-Value (avg): ");
+                  Serial.println(average_r);
+                  Serial.print("SpO2 (avg, %): ");
+                  Serial.println(average_spo2);
+                  Serial.print("Suhu (℃)");
+                  Serial.println(x);
+                  Serial.print("Time (ms): ");
+                }
                 arrMedian[arri] = average_bpm;
                 arrMedianspo[arri] = average_spo2;
                 arrMediansuhu[arri] = x;
                 arri++;
-
+                if (debug)
+                {
+                  bpmChar.writeValue(String(average_bpm) + " bpm");
+                  oksiChar.writeValue(String(average_spo2) + "%");
+                  temperaturChar.writeValue(String(x) + "℃");
+                  timeuid.writeValue(String(rtcne.dateFormat("U", dt)));
+                }
                 if (millis() - lastmillis > 30000)
                 {
                   lastmillis = millis();
@@ -417,7 +435,10 @@ void loop()
                   BLEspo = String(med(arrMedianspo, arri)) + "%";
                   BLEsuhu = String(med(arrMediansuhu, arri)) + "℃";
                   String timene = rtcne.dateFormat("U", dt);
-                  Serial.println("Send BLE = Heart Rate: " + BLEbpm + "| SPO2: " + BLEspo + "| suhu: " + BLEsuhu + " | deviceon " + deviceon + " | timeunix " + timene);
+                  if (debug)
+                  {
+                    Serial.println("Send BLE = Heart Rate: " + BLEbpm + "| SPO2: " + BLEspo + "| suhu: " + BLEsuhu + " | deviceon " + deviceon + " | timeunix " + timene);
+                  }
                   arrbpm[deviceon - 1] = BLEbpm.toInt();
                   arrspo[deviceon - 1] = BLEspo.toInt();
                   arrsuhu[deviceon - 1] = BLEsuhu.toInt();
@@ -432,18 +453,21 @@ void loop()
 
                 constrain(average_spo2, 0, 100);
               }
-              Serial.println("avg on");
+              // Serial.println("avg on");
             }
             else
             {
-              Serial.print("Time (ms): ");
-              Serial.println(millis());
-              Serial.print("Heart Rate (current, bpm): ");
-              Serial.println(bpm);
-              Serial.print("R-Value (current): ");
-              Serial.println(r);
-              Serial.print("SpO2 (current, %): ");
-              Serial.println(spo2);
+              if (debug)
+              {
+                Serial.print("Time (ms): ");
+                Serial.println(millis());
+                Serial.print("Heart Rate (current, bpm): ");
+                Serial.println(bpm);
+                Serial.print("R-Value (current): ");
+                Serial.println(r);
+                Serial.print("SpO2 (current, %): ");
+                Serial.println(spo2);
+              }
             }
           }
           else
@@ -483,9 +507,34 @@ void loop()
   if (digitalRead(0) == 1)
   {
     lastmiliisdeepsleep = millis();
-    Serial.println("wake");
+    if (debug)
+    {
+      Serial.println("wake");
+    }
   }
-
+if (Serial.available())
+    {
+      String valuee = Serial.readString();
+      if (valuee == "printfs")
+      {
+        Serial.println("printfs");
+        errReadArr("/spo.txt", arrspo);
+        errReadArr("/bpm.txt", arrbpm);
+        errReadArr("/suhu.txt", arrsuhu);
+        errReadArr("/unixtime.txt", arrtime);
+      }
+      if (valuee == "debug")
+      {
+        if (debug)
+        {
+          debug = 0;
+        }
+        else
+        {
+          debug = 1;
+        }
+      }
+    }
   if (central)
   {
 
@@ -503,6 +552,22 @@ void loop()
         esp_deep_sleep_start();
       }
     }
+    
+
+    if (notyChar.value() == "debug")
+    {
+      notyChar.writeValue("debug");
+      if (debug)
+      {
+        debug = 0;
+      }
+      else
+      {
+        debug = 1;
+      }
+      notyChar.writeValue("okee");
+    }
+
     if (notyChar.value() == "erase")
     {
       notyChar.writeValue("erase");
@@ -516,10 +581,10 @@ void loop()
       errReadInt("/boot.txt", deviceon);
       deviceon++;
       errfsWriteFsStr("/boot.txt", String(deviceon));
-      errReadArr("/spo.txt", arrspo);
-      errReadArr("/bpm.txt", arrbpm);
-      errReadArr("/suhu.txt", arrsuhu);
-      errReadArr("/unixtime.txt", arrtime);
+        errReadArr("/spo.txt", arrspo);
+        errReadArr("/bpm.txt", arrbpm);
+        errReadArr("/suhu.txt", arrsuhu);
+        errReadArr("/unixtime.txt", arrtime);
     }
 
     if (notyChar.value() == "send")
@@ -576,11 +641,14 @@ void loop()
   if (millis() - battdelay > 10000)
   {
     battdelay = millis();
-    batteryLevelChar.writeValue(batrepresentase()); // set initial value for this characteristic
+    batteryLevelChar.writeValue(batrepresentase());           // set initial value for this characteristic
     batteryInfoChar.writeValue(String(readBatteryVoltage())); // set initial value for this characteristic
-    Serial.println("bat :" + String(batrepresentase()));
-    Serial.println("v :" + String(readBatteryVoltage()));
-    Serial.println("adc :" + String(analogRead(1)));
+    if (debug)
+    {
+      Serial.println("bat :" + String(batrepresentase()));
+      Serial.println("v :" + String(readBatteryVoltage()));
+      Serial.println("adc :" + String(analogRead(1)));
+    }
   }
 }
 
