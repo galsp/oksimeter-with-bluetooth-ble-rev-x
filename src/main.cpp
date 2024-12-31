@@ -135,10 +135,11 @@ int arrMedianspo[500];
 int arrMediansuhu[500];
 int arri;
 
-int arrspo[500];
-int arrbpm[500];
-int arrsuhu[500];
-int arrtime[500];
+int arrspo[13600];
+int arrbpm[13600];
+int arrsuhu[13600];
+int arrtime[13600];
+
 bool k = 1;
 
 String BLEbpm;
@@ -148,17 +149,20 @@ String BLEtime;
 ///////////////////
 
 int deviceon;
-#define nodeId 1
+#define nodeId 4
 
 #if nodeId == 1
-#define nodeCode "KA-VF4L" // Rover1
+#define nodeCode "KA-VF4L" // Stroke1
 #define devicename "Stroke 1"
 #elif nodeId == 2
-#define nodeCode "KA-D5CW" // Rover2
+#define nodeCode "KA-D5CW" // Stroke2
 #define devicename "Stroke 2"
 #elif nodeId == 3
-#define nodeCode "KA-06NG" // Rover3
+#define nodeCode "KA-06NG" // Stroke3
 #define devicename "Stroke 3"
+#elif nodeId == 4
+#define nodeCode "KA-WVHD" // Stroke4
+#define devicename "Stroke 4"
 #else
 #define nodeCode "NO NODECODE FOUND"
 #define devicename "NO device FOUND"
@@ -244,8 +248,9 @@ void setup()
   {
 
     Serial.println("Sensor not found");
-    while (1)
-      ; // kalo ini jalan berarti program jadi stuck dan tdk eksekusi ke code selanjutnya
+    notyChar.writeValue("Sensor not found");
+    // while (1)
+       // kalo ini jalan berarti program jadi stuck dan tdk eksekusi ke code selanjutnya
   }
 
   sensor.setLedCurrent(MAX30105::LED_RED, 38); // 28
